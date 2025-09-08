@@ -23,11 +23,12 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Install Android SDK tools
-        uses: android-actions/setup-sdk@v2
-        with:
-          api-level: 34
-          build-tools: "34.0.0"
+    - name: Install Android SDK tools
+      uses: android-actions/setup-android@v3
+      with:
+        api-level: 34
+        build-tools: "34.0.0"
+
 
       - name: Restore keystore from secret
         run: |
