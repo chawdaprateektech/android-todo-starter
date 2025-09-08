@@ -1,0 +1,84 @@
+name: Android CI - Build Signed AAB
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Android SDK tools
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: "34.0.0"
+
+      - name: Restore keystore from secret
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+            ls -l release.keystore
+          else
+            echo "No KEYSTORE_BASE64 secret found. Aborting."
+            exit 1
+          fi
+
+      - name: Move keystore to expected location
+        run: |
+          mkdir -p keystore
+          mv release.keystore keystore/release.keystore
+          echo "Keystore path: $(pwd)/keystore/release.keystore"
+
+      - name: Debug: show wrapper files & contents
+        run: |
+          echo "PWD: $(pwd)"
+          echo "List repo root:"
+          ls -la || true
+          echo "List gradle folder:"
+          ls -la gradle || true
+          echo "List gradle/wrapper folder:"
+          ls -la gradle/wrapper || true
+          echo "File size:"
+          if [ -f gradle/wrapper/gradle-wrapper.jar ]; then
+            stat -c "%n %s bytes" gradle/wrapper/gradle-wrapper.jar || ls -la gradle/wrapper/gradle-wrapper.jar || true
+          else
+            echo "gradle-wrapper.jar not found"
+          fi
+          echo "Try to list JAR contents with jar tf (or unzip -l if jar not available):"
+          if command -v jar >/dev/null 2>&1; then
+            jar tf gradle/wrapper/gradle-wrapper.jar | sed -n '1,50p' || true
+          else
+            unzip -l gradle/wrapper/gradle-wrapper.jar | sed -n '1,50p' || true
+          fi
+
+      - name: Grant execute (gradlew)
+        run: chmod +x ./gradlew || true
+
+      - name: Build release AAB
+        run: |
+          ./gradlew clean :app:bundleRelease -Pandroid.injected.signing.store.file=keystore/release.keystore \
+            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
+
+      - name: Upload artifact (signed AAB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: todo-starter-aab
+          path: app/build/outputs/bundle/release/app-release.aab
