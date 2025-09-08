@@ -45,6 +45,25 @@ jobs:
           mv release.keystore keystore/release.keystore
           echo "Keystore path: $(pwd)/keystore/release.keystore"
 
+      - name: Debug: show wrapper files & contents
+        run: |
+          echo "PWD: $(pwd)"
+          echo "List repo root:"
+          ls -la || true
+          echo "List gradle folder:"
+          ls -la gradle || true
+          echo "List gradle/wrapper folder:"
+          ls -la gradle/wrapper || true
+          echo "File size:"
+          stat -c "%n %s bytes" gradle/wrapper/gradle-wrapper.jar || ls -la gradle/wrapper/gradle-wrapper.jar || true
+          echo "Try to list JAR contents with jar tf:"
+          if command -v jar >/dev/null 2>&1; then
+            jar tf gradle/wrapper/gradle-wrapper.jar | sed -n '1,50p' || true
+          else
+            echo "jar command not found; trying unzip -l"
+            unzip -l gradle/wrapper/gradle-wrapper.jar | sed -n '1,50p' || true
+          fi
+
       - name: Grant execute (gradlew)
         run: chmod +x ./gradlew || true
 
